@@ -417,16 +417,19 @@ export default function TypingGame() {
       }
     }, 0);
 
-    // Play audio for current word when starting to type a new word
+    // Play audio when typing the first letter of each word
     if (audioEnabled && input.length > 0) {
       const currentPos = input.length;
-      const textUpToCursor = gameState.currentText.substring(0, currentPos);
-      const lastSpaceIndex = textUpToCursor.lastIndexOf(' ');
+      const previousPos = currentPos - 1;
       
-      // Check if we just started typing a new word (right after a space or at the beginning)
-      const isStartOfWord = lastSpaceIndex === currentPos - 1 || currentPos === 1;
-      
-      if (isStartOfWord) {
+      // Check if we just typed the first character of the text
+      if (currentPos === 1) {
+        setTimeout(() => {
+          playCurrentWord();
+        }, 50);
+      }
+      // Check if we just typed the first character after a space
+      else if (previousPos > 0 && gameState.currentText[previousPos - 1] === ' ') {
         setTimeout(() => {
           playCurrentWord();
         }, 50);
