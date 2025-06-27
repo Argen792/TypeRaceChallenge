@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, Loader2, Upload, FileText, User, Trophy, Volume2, VolumeX } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { GameState, GameStats, QuoteResponse, User as UserType, TypingTest } from "@shared/schema";
@@ -42,6 +43,8 @@ export default function TypingGame() {
   const [username, setUsername] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [speechRate, setSpeechRate] = useState(1.0);
+  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +150,43 @@ export default function TypingGame() {
     };
   }, [gameState.isPlaying, gameState.startTime]);
 
+  // Load available voices and select best one
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      setAvailableVoices(voices);
+      
+      if (voices.length > 0 && !selectedVoice) {
+        // Find the best natural voice (prefer neural/enhanced voices)
+        const naturalVoices = voices.filter(voice => 
+          voice.name.toLowerCase().includes('neural') ||
+          voice.name.toLowerCase().includes('enhanced') ||
+          voice.name.toLowerCase().includes('premium') ||
+          voice.name.toLowerCase().includes('natural')
+        );
+        
+        // If no neural voices, prefer English voices that are local (not remote)
+        const englishVoices = voices.filter(voice => 
+          voice.lang.startsWith('en') && voice.localService
+        );
+        
+        // Choose the best available voice
+        const bestVoice = naturalVoices[0] || englishVoices[0] || voices[0];
+        setSelectedVoice(bestVoice);
+      }
+    };
+
+    // Load voices immediately if available
+    loadVoices();
+    
+    // Also listen for voiceschanged event (some browsers load voices asynchronously)
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    };
+  }, [selectedVoice]);
+
   // Cleanup audio on component unmount
   useEffect(() => {
     return () => {
@@ -202,20 +242,37 @@ export default function TypingGame() {
     // Get remaining text to read
     const remainingText = gameState.currentText.substring(currentPos);
     
-    // Only read a small chunk ahead (next 20-30 characters or until punctuation)
-    let chunkEnd = Math.min(remainingText.length, 30);
-    const punctuationMatch = remainingText.substring(0, chunkEnd).match(/[.!?]/);
-    if (punctuationMatch) {
-      chunkEnd = punctuationMatch.index! + 1;
+    // Read ahead in complete words (next 15-25 words or until sentence end)
+    const words = remainingText.split(/\s+/);
+    const maxWords = 20;
+    let wordsToRead = Math.min(words.length, maxWords);
+    
+    // Find natural stopping point (sentence endings)
+    for (let i = 0; i < wordsToRead; i++) {
+      if (words[i].match(/[.!?]$/)) {
+        wordsToRead = i + 1;
+        break;
+      }
     }
     
-    const textChunk = remainingText.substring(0, chunkEnd);
+    const textChunk = words.slice(0, wordsToRead).join(' ');
     
     if (textChunk.trim()) {
       const utterance = new SpeechSynthesisUtterance(textChunk);
+      
+      // Use selected voice for better quality
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+      
+      // Improved speech settings for more natural sound
       utterance.rate = calculateTypingSpeed();
-      utterance.pitch = 1.0;
-      utterance.volume = 0.6;
+      utterance.pitch = 0.9; // Slightly lower pitch sounds more natural
+      utterance.volume = 0.7;
+      
+      // Add some variation to make it less robotic
+      const variation = (Math.random() - 0.5) * 0.1;
+      utterance.pitch += variation;
       
       speechSynthRef.current = utterance;
       window.speechSynthesis.speak(utterance);
@@ -579,46 +636,76 @@ export default function TypingGame() {
 
           {/* Audio Controls */}
           <Card className="p-4 mb-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center gap-3">
-                {audioEnabled ? <Volume2 className="w-5 h-5 text-blue-600" /> : <VolumeX className="w-5 h-5 text-gray-400" />}
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="audio-toggle" className="text-sm font-medium">
-                    Audio Sync
-                  </Label>
-                  <Switch
-                    id="audio-toggle"
-                    checked={audioEnabled}
-                    onCheckedChange={setAudioEnabled}
-                  />
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  {audioEnabled ? <Volume2 className="w-5 h-5 text-blue-600" /> : <VolumeX className="w-5 h-5 text-gray-400" />}
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="audio-toggle" className="text-sm font-medium">
+                      Audio Sync
+                    </Label>
+                    <Switch
+                      id="audio-toggle"
+                      checked={audioEnabled}
+                      onCheckedChange={setAudioEnabled}
+                    />
+                  </div>
                 </div>
+                
+                {audioEnabled && (
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Label className="text-sm font-medium whitespace-nowrap">
+                      Base Speed
+                    </Label>
+                    <div className="flex items-center gap-2 flex-1">
+                      <Slider
+                        value={[speechRate]}
+                        onValueChange={(value) => setSpeechRate(value[0])}
+                        min={0.5}
+                        max={2.0}
+                        step={0.1}
+                        className="flex-1"
+                      />
+                      <span className="text-sm text-gray-600 w-12 text-right">
+                        {speechRate.toFixed(1)}x
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
               
-              {audioEnabled && (
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+              {audioEnabled && availableVoices.length > 0 && (
+                <div className="flex items-center gap-3">
                   <Label className="text-sm font-medium whitespace-nowrap">
-                    Base Speed
+                    Voice
                   </Label>
-                  <div className="flex items-center gap-2 flex-1">
-                    <Slider
-                      value={[speechRate]}
-                      onValueChange={(value) => setSpeechRate(value[0])}
-                      min={0.5}
-                      max={2.0}
-                      step={0.1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm text-gray-600 w-12 text-right">
-                      {speechRate.toFixed(1)}x
-                    </span>
-                  </div>
+                  <Select
+                    value={selectedVoice?.name || ""}
+                    onValueChange={(voiceName) => {
+                      const voice = availableVoices.find(v => v.name === voiceName);
+                      if (voice) setSelectedVoice(voice);
+                    }}
+                  >
+                    <SelectTrigger className="w-full max-w-xs">
+                      <SelectValue placeholder="Select a voice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableVoices
+                        .filter(voice => voice.lang.startsWith('en'))
+                        .map((voice) => (
+                          <SelectItem key={voice.name} value={voice.name}>
+                            {voice.name} {voice.localService ? '(Local)' : '(Online)'}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
             
             {audioEnabled && (
               <p className="text-xs text-gray-500 mt-2">
-                Audio will read the text at your typing speed. Base speed adjusts the starting playback rate.
+                Audio reads the text at your typing speed with natural voice variations. Select a voice for better quality.
               </p>
             )}
           </Card>

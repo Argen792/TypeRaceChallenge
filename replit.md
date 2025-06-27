@@ -85,6 +85,9 @@ The application is configured for deployment on Replit with the following setup:
   - Audio automatically adjusts playback rate based on typing performance
   - Audio stops and starts appropriately with game state changes
   - Enhanced UI with audio control panel and updated instructions
+  - Improved voice quality with natural voice selection and speech variations
+  - Added voice selection dropdown to choose from available system voices
+  - Enhanced audio chunking to read complete words for natural speech flow
 - June 27, 2025. Added PostgreSQL database integration
   - Created user accounts and typing test result storage
   - Added user login/registration system
