@@ -88,8 +88,9 @@ The application is configured for deployment on Replit with the following setup:
   - Improved voice quality with natural voice selection and speech variations
   - Added voice selection dropdown to choose from available system voices
   - Enhanced audio chunking to read complete words for natural speech flow
-  - Modified audio behavior to read back typed words instead of reading ahead
-  - Audio now starts only when user begins typing, not before
+  - Modified audio behavior to speak complete words when user starts typing first letter
+  - Audio predicts and pronounces the whole word as soon as typing begins
+  - Perfect for learning pronunciation and word recognition while typing
 - June 27, 2025. Added PostgreSQL database integration
   - Created user accounts and typing test result storage
   - Added user login/registration system

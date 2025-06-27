@@ -230,26 +230,31 @@ export default function TypingGame() {
     return Math.min(Math.max(baseSpeed, 0.5), 3.0); // Clamp between 0.5x and 3x speed
   };
 
-  const playAudioForTypedText = () => {
+  const playCurrentWord = () => {
     if (!audioEnabled || !('speechSynthesis' in window) || !gameState.currentText || gameState.userInput.length === 0) return;
 
     // Stop any current speech
     window.speechSynthesis.cancel();
     
-    // Get the text that has been typed so far
-    const typedText = gameState.currentText.substring(0, gameState.userInput.length);
+    // Find the current word being typed
+    const currentPos = gameState.userInput.length;
+    const textUpToCursor = gameState.currentText.substring(0, currentPos);
+    const remainingText = gameState.currentText.substring(currentPos);
     
-    // Find the last complete word that was typed
-    const words = typedText.split(/\s+/);
-    if (words.length === 0) return;
+    // Find the start of the current word
+    const lastSpaceIndex = textUpToCursor.lastIndexOf(' ');
+    const wordStart = lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1;
     
-    // Get the last few words to read (3-5 words for natural flow)
-    const wordsToRead = Math.min(words.length, 4);
-    const recentWords = words.slice(-wordsToRead);
-    const textToRead = recentWords.join(' ');
+    // Find the end of the current word in the full text
+    const textFromWordStart = gameState.currentText.substring(wordStart);
+    const nextSpaceIndex = textFromWordStart.indexOf(' ');
+    const wordEnd = nextSpaceIndex === -1 ? gameState.currentText.length : wordStart + nextSpaceIndex;
     
-    if (textToRead.trim()) {
-      const utterance = new SpeechSynthesisUtterance(textToRead);
+    // Get the complete current word
+    const currentWord = gameState.currentText.substring(wordStart, wordEnd);
+    
+    if (currentWord.trim()) {
+      const utterance = new SpeechSynthesisUtterance(currentWord);
       
       // Use selected voice for better quality
       if (selectedVoice) {
@@ -257,8 +262,8 @@ export default function TypingGame() {
       }
       
       // Improved speech settings for more natural sound
-      utterance.rate = Math.max(calculateTypingSpeed(), 0.8); // Minimum readable speed
-      utterance.pitch = 0.9; // Slightly lower pitch sounds more natural
+      utterance.rate = Math.max(calculateTypingSpeed() * 1.2, 0.9); // Slightly faster for single words
+      utterance.pitch = 0.9;
       utterance.volume = 0.7;
       
       // Add some variation to make it less robotic
@@ -412,12 +417,20 @@ export default function TypingGame() {
       }
     }, 0);
 
-    // Sync audio with typing progress (when completing words)
-    if (audioEnabled && input.length > 0 && input.endsWith(' ')) {
-      // Small delay to let the word complete
-      setTimeout(() => {
-        playAudioForTypedText();
-      }, 100);
+    // Play audio for current word when starting to type a new word
+    if (audioEnabled && input.length > 0) {
+      const currentPos = input.length;
+      const textUpToCursor = gameState.currentText.substring(0, currentPos);
+      const lastSpaceIndex = textUpToCursor.lastIndexOf(' ');
+      
+      // Check if we just started typing a new word (right after a space or at the beginning)
+      const isStartOfWord = lastSpaceIndex === currentPos - 1 || currentPos === 1;
+      
+      if (isStartOfWord) {
+        setTimeout(() => {
+          playCurrentWord();
+        }, 50);
+      }
     }
 
     // Check if completed
@@ -696,7 +709,7 @@ export default function TypingGame() {
             
             {audioEnabled && (
               <p className="text-xs text-gray-500 mt-2">
-                Audio reads back the words you type in real-time. Start typing to hear your progress!
+                Audio speaks the complete word when you start typing the first letter. Great for learning pronunciation!
               </p>
             )}
           </Card>
@@ -808,7 +821,7 @@ export default function TypingGame() {
             </li>
             <li className="flex items-start">
               <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              Enable audio sync to hear the words you type read back to you in real-time
+              Enable audio sync to hear each word spoken when you start typing it
             </li>
           </ul>
         </Card>
