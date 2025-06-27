@@ -9,8 +9,8 @@ TypeRace is a web-based typing speed game that challenges users to type quotes a
 The application follows a full-stack architecture with clear separation between frontend and backend concerns:
 
 - **Frontend**: React-based SPA using Vite for build tooling
-- **Backend**: Express.js server with API proxy functionality
-- **Database**: PostgreSQL with Drizzle ORM (configured but not actively used in current implementation)
+- **Backend**: Express.js server with API proxy functionality and database integration
+- **Database**: PostgreSQL with Drizzle ORM for storing user accounts and typing test results
 - **Styling**: Tailwind CSS with shadcn/ui component library
 - **State Management**: React Query for server state, local React state for game logic
 
@@ -79,6 +79,11 @@ The application is configured for deployment on Replit with the following setup:
 
 ## Changelog
 
+- June 27, 2025. Added PostgreSQL database integration
+  - Created user accounts and typing test result storage
+  - Added user login/registration system
+  - Implemented best score tracking and progress saving
+  - Enhanced UI with user profile display and login dialogs
 - June 24, 2025. Initial setup
 
 ## User Preferences

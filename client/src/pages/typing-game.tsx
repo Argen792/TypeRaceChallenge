@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Loader2, Upload, FileText } from "lucide-react";
-import type { GameState, GameStats, QuoteResponse } from "@shared/schema";
+import { CheckCircle, Loader2, Upload, FileText, User, Trophy } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { GameState, GameStats, QuoteResponse, User as UserType, TypingTest } from "@shared/schema";
 
 export default function TypingGame() {
   const [gameState, setGameState] = useState<GameState>({
@@ -34,6 +35,9 @@ export default function TypingGame() {
   const [finalStats, setFinalStats] = useState<GameStats | null>(null);
   const [customText, setCustomText] = useState("");
   const [useCustomText, setUseCustomText] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [showUserDialog, setShowUserDialog] = useState(false);
+  const [username, setUsername] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +46,54 @@ export default function TypingGame() {
   const { data: quote, isLoading, refetch } = useQuery<QuoteResponse>({
     queryKey: ["/api/quote"],
     enabled: !gameState.currentText && !useCustomText,
+  });
+
+  // Get user's best score
+  const { data: bestScore } = useQuery<TypingTest | null>({
+    queryKey: ["/api/typing-test/best", currentUser?.id],
+    enabled: !!currentUser?.id,
+  });
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const response = await fetch(`/api/user`, {
+        method: "POST",
+        body: JSON.stringify({ username }),
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create user');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: (user: UserType) => {
+      setCurrentUser(user);
+      setShowUserDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/typing-test/best"] });
+    },
+  });
+
+  // Save typing test mutation
+  const saveTestMutation = useMutation({
+    mutationFn: async (testData: any) => {
+      const response = await fetch(`/api/typing-test`, {
+        method: "POST",
+        body: JSON.stringify(testData),
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save test');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/typing-test/best"] });
+    },
   });
 
   // Initialize game with fetched quote or custom text
@@ -262,6 +314,30 @@ export default function TypingGame() {
 
     setFinalStats(final);
     setShowResults(true);
+
+    // Save test result to database if user is logged in
+    if (currentUser) {
+      const testData = {
+        userId: currentUser.id,
+        wpm: finalWPM.toString(),
+        accuracy: finalAccuracy.toString(),
+        timeElapsed: finalTimeElapsed,
+        totalCharacters: totalChars,
+        correctCharacters: correctChars,
+        errors: finalErrors,
+        textSource: useCustomText ? "custom" : "random",
+        textContent: gameState.currentText,
+      };
+      
+      saveTestMutation.mutate(testData);
+    }
+  };
+
+  const handleCreateUser = () => {
+    if (username.trim()) {
+      createUserMutation.mutate(username.trim());
+      setUsername("");
+    }
   };
 
   const renderTextWithHighlighting = () => {
@@ -307,9 +383,48 @@ export default function TypingGame() {
     <div className="min-h-screen py-8 px-4 bg-gray-50">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">TypeRace</h1>
-          <p className="text-gray-600">Test your typing speed and accuracy</p>
+        <header className="mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="text-center sm:text-left">
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">TypeRace</h1>
+              <p className="text-gray-600">Test your typing speed and accuracy</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {currentUser ? (
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <User className="w-5 h-5" />
+                      <span className="font-semibold">{currentUser.username}</span>
+                    </div>
+                    {bestScore && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                        <Trophy className="w-4 h-4 text-yellow-600" />
+                        <span>Best: {bestScore.wpm} WPM</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => setCurrentUser(null)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => setShowUserDialog(true)}
+                  variant="default"
+                  className="flex items-center gap-2"
+                >
+                  <User className="w-4 h-4" />
+                  Login/Register
+                </Button>
+              )}
+            </div>
+          </div>
         </header>
 
         {/* Game Container */}
@@ -517,6 +632,65 @@ export default function TypingGame() {
                 Close
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Login/Register Dialog */}
+      <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+        <DialogContent className="max-w-md w-full p-6">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-bold">
+              Welcome to TypeRace
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <p className="text-center text-gray-600">
+              Enter your username to save your typing progress and track your best scores!
+            </p>
+            
+            <div className="space-y-3">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateUser();
+                  }
+                }}
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleCreateUser}
+                disabled={!username.trim() || createUserMutation.isPending}
+                className="flex-1"
+              >
+                {createUserMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Start Playing"
+                )}
+              </Button>
+              <Button
+                onClick={() => setShowUserDialog(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                Play as Guest
+              </Button>
+            </div>
+            
+            <p className="text-xs text-center text-gray-500 mt-4">
+              * Playing as a guest means your scores won't be saved
+            </p>
           </div>
         </DialogContent>
       </Dialog>
