@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Loader2, Upload, FileText, User, Trophy } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { CheckCircle, Loader2, Upload, FileText, User, Trophy, Volume2, VolumeX } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { GameState, GameStats, QuoteResponse, User as UserType, TypingTest } from "@shared/schema";
 
@@ -38,11 +40,15 @@ export default function TypingGame() {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [username, setUsername] = useState("");
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [speechRate, setSpeechRate] = useState(1.0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textDisplayRef = useRef<HTMLDivElement>(null);
   const currentCharRef = useRef<HTMLSpanElement>(null);
+  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioTimeoutRef = useRef<number | null>(null);
 
   // Fetch random quote
   const { data: quote, isLoading, refetch } = useQuery<QuoteResponse>({
@@ -141,6 +147,13 @@ export default function TypingGame() {
     };
   }, [gameState.isPlaying, gameState.startTime]);
 
+  // Cleanup audio on component unmount
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, []);
+
   const calculateWPM = (correctCharacters: number, timeElapsed: number): number => {
     if (timeElapsed === 0) return 0;
     const minutes = timeElapsed / 60000;
@@ -167,6 +180,54 @@ export default function TypingGame() {
       correctCharacters: correctChars,
       errors,
     });
+  };
+
+  const calculateTypingSpeed = (): number => {
+    if (gameState.timeElapsed === 0 || gameState.userInput.length === 0) return speechRate;
+    
+    const charactersPerSecond = gameState.userInput.length / (gameState.timeElapsed / 1000);
+    const baseSpeed = charactersPerSecond * 0.15; // Adjust multiplier for natural speech rate
+    return Math.min(Math.max(baseSpeed, 0.5), 3.0); // Clamp between 0.5x and 3x speed
+  };
+
+  const playAudioForProgress = () => {
+    if (!audioEnabled || !('speechSynthesis' in window) || !gameState.currentText) return;
+
+    const currentPos = gameState.userInput.length;
+    if (currentPos >= gameState.currentText.length) return;
+
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+    
+    // Get remaining text to read
+    const remainingText = gameState.currentText.substring(currentPos);
+    
+    // Only read a small chunk ahead (next 20-30 characters or until punctuation)
+    let chunkEnd = Math.min(remainingText.length, 30);
+    const punctuationMatch = remainingText.substring(0, chunkEnd).match(/[.!?]/);
+    if (punctuationMatch) {
+      chunkEnd = punctuationMatch.index! + 1;
+    }
+    
+    const textChunk = remainingText.substring(0, chunkEnd);
+    
+    if (textChunk.trim()) {
+      const utterance = new SpeechSynthesisUtterance(textChunk);
+      utterance.rate = calculateTypingSpeed();
+      utterance.pitch = 1.0;
+      utterance.volume = 0.6;
+      
+      speechSynthRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const stopAudio = () => {
+    window.speechSynthesis.cancel();
+    if (audioTimeoutRef.current) {
+      clearTimeout(audioTimeoutRef.current);
+      audioTimeoutRef.current = null;
+    }
   };
 
   const startGame = () => {
@@ -199,10 +260,18 @@ export default function TypingGame() {
       if (textDisplayRef.current) {
         textDisplayRef.current.scrollTop = 0;
       }
+
+      // Start audio if enabled
+      if (audioEnabled) {
+        playAudioForProgress();
+      }
     }, 100);
   };
 
   const resetGame = async () => {
+    // Stop any audio first
+    stopAudio();
+
     setGameState({
       isPlaying: false,
       startTime: null,
@@ -298,6 +367,11 @@ export default function TypingGame() {
       }
     }, 0);
 
+    // Sync audio with typing progress (every few characters)
+    if (audioEnabled && input.length > 0 && input.length % 10 === 0) {
+      playAudioForProgress();
+    }
+
     // Check if completed
     if (input.length === gameState.currentText.length) {
       endGame(input, errors);
@@ -305,6 +379,9 @@ export default function TypingGame() {
   };
 
   const endGame = (finalInput: string, finalErrors: number) => {
+    // Stop audio when game ends
+    stopAudio();
+
     setGameState(prev => ({
       ...prev,
       isPlaying: false,
@@ -500,6 +577,52 @@ export default function TypingGame() {
             </TabsContent>
           </Tabs>
 
+          {/* Audio Controls */}
+          <Card className="p-4 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                {audioEnabled ? <Volume2 className="w-5 h-5 text-blue-600" /> : <VolumeX className="w-5 h-5 text-gray-400" />}
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="audio-toggle" className="text-sm font-medium">
+                    Audio Sync
+                  </Label>
+                  <Switch
+                    id="audio-toggle"
+                    checked={audioEnabled}
+                    onCheckedChange={setAudioEnabled}
+                  />
+                </div>
+              </div>
+              
+              {audioEnabled && (
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Label className="text-sm font-medium whitespace-nowrap">
+                    Base Speed
+                  </Label>
+                  <div className="flex items-center gap-2 flex-1">
+                    <Slider
+                      value={[speechRate]}
+                      onValueChange={(value) => setSpeechRate(value[0])}
+                      min={0.5}
+                      max={2.0}
+                      step={0.1}
+                      className="flex-1"
+                    />
+                    <span className="text-sm text-gray-600 w-12 text-right">
+                      {speechRate.toFixed(1)}x
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {audioEnabled && (
+              <p className="text-xs text-gray-500 mt-2">
+                Audio will read the text at your typing speed. Base speed adjusts the starting playback rate.
+              </p>
+            )}
+          </Card>
+
           {/* Stats Bar */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
@@ -604,6 +727,10 @@ export default function TypingGame() {
             <li className="flex items-start">
               <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
               Complete the passage to see your final WPM and accuracy scores
+            </li>
+            <li className="flex items-start">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+              Enable audio sync to hear the text read aloud at your typing speed
             </li>
           </ul>
         </Card>

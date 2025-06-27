@@ -79,6 +79,12 @@ The application is configured for deployment on Replit with the following setup:
 
 ## Changelog
 
+- June 27, 2025. Added audio synchronization feature
+  - Implemented text-to-speech audio that plays at user's typing speed
+  - Added audio controls with enable/disable toggle and base speed adjustment
+  - Audio automatically adjusts playback rate based on typing performance
+  - Audio stops and starts appropriately with game state changes
+  - Enhanced UI with audio control panel and updated instructions
 - June 27, 2025. Added PostgreSQL database integration
   - Created user accounts and typing test result storage
   - Added user login/registration system
