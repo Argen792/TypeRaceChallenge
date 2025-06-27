@@ -41,6 +41,8 @@ export default function TypingGame() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textDisplayRef = useRef<HTMLDivElement>(null);
+  const currentCharRef = useRef<HTMLSpanElement>(null);
 
   // Fetch random quote
   const { data: quote, isLoading, refetch } = useQuery<QuoteResponse>({
@@ -189,9 +191,14 @@ export default function TypingGame() {
       errors: 0,
     });
 
-    // Focus the textarea
+    // Focus the textarea and scroll to top of text
     setTimeout(() => {
       textareaRef.current?.focus();
+      
+      // Scroll text display to top when starting
+      if (textDisplayRef.current) {
+        textDisplayRef.current.scrollTop = 0;
+      }
     }, 100);
   };
 
@@ -280,6 +287,17 @@ export default function TypingGame() {
       errors,
     }));
 
+    // Auto-scroll to keep current position visible
+    setTimeout(() => {
+      if (currentCharRef.current && textDisplayRef.current) {
+        currentCharRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    }, 0);
+
     // Check if completed
     if (input.length === gameState.currentText.length) {
       endGame(input, errors);
@@ -344,9 +362,10 @@ export default function TypingGame() {
     if (!gameState.currentText) return null;
 
     return (
-      <div className="typing-text text-gray-800">
+      <div className="typing-text text-gray-800 leading-relaxed">
         {gameState.currentText.split("").map((char, index) => {
           let className = "relative";
+          const isCurrentChar = index === gameState.userInput.length;
           
           if (index < gameState.userInput.length) {
             if (gameState.userInput[index] === char) {
@@ -354,12 +373,16 @@ export default function TypingGame() {
             } else {
               className += " char-incorrect";
             }
-          } else if (index === gameState.userInput.length) {
+          } else if (isCurrentChar) {
             className += " char-current";
           }
 
           return (
-            <span key={index} className={className}>
+            <span 
+              key={index} 
+              className={className}
+              ref={isCurrentChar ? currentCharRef : null}
+            >
               {char}
             </span>
           );
@@ -507,7 +530,11 @@ export default function TypingGame() {
 
           {/* Text Display Area */}
           <div className="mb-6">
-            <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 min-h-32">
+            <div 
+              ref={textDisplayRef}
+              className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 min-h-32 max-h-64 overflow-y-auto scroll-smooth"
+              style={{ scrollBehavior: 'smooth' }}
+            >
               {isLoading && !useCustomText ? (
                 <div className="text-center py-8">
                   <Loader2 className="animate-spin inline-block w-6 h-6 text-blue-500 mb-2" />
