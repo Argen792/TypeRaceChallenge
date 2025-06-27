@@ -25,9 +25,9 @@
   --radius: 0.5rem;
   
   /* Custom typing game colors */
-  --correct: hsl(122, 39%, 49%);
-  --incorrect: hsl(0, 86%, 59%);
-  --current: hsl(207, 100%, 50%);
+  --correct: hsl(122, 20%, 60%);
+  --incorrect: hsl(0, 30%, 70%);
+  --current: hsl(207, 40%, 70%);
 }
 
 .dark {
@@ -53,9 +53,9 @@
   --radius: 0.5rem;
   
   /* Custom typing game colors for dark mode */
-  --correct: hsl(122, 39%, 49%);
-  --incorrect: hsl(0, 86%, 59%);
-  --current: hsl(207, 100%, 50%);
+  --correct: hsl(122, 20%, 60%);
+  --incorrect: hsl(0, 30%, 70%);
+  --current: hsl(207, 40%, 70%);
 }
 
 @layer base {
@@ -72,16 +72,19 @@
 .char-correct {
   background-color: var(--correct);
   color: white;
+  border-radius: 3px;
 }
 
 .char-incorrect {
   background-color: var(--incorrect);
   color: white;
+  border-radius: 3px;
 }
 
 .char-current {
   background-color: var(--current);
   color: white;
+  border-radius: 3px;
 }
 
 .typing-text {

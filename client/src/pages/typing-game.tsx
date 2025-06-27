@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle, Loader2, Upload, FileText } from "lucide-react";
 import type { GameState, GameStats, QuoteResponse } from "@shared/schema";
 
 export default function TypingGame() {
@@ -29,24 +32,32 @@ export default function TypingGame() {
 
   const [showResults, setShowResults] = useState(false);
   const [finalStats, setFinalStats] = useState<GameStats | null>(null);
+  const [customText, setCustomText] = useState("");
+  const [useCustomText, setUseCustomText] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch random quote
   const { data: quote, isLoading, refetch } = useQuery<QuoteResponse>({
     queryKey: ["/api/quote"],
-    enabled: !gameState.currentText,
+    enabled: !gameState.currentText && !useCustomText,
   });
 
-  // Initialize game with fetched quote
+  // Initialize game with fetched quote or custom text
   useEffect(() => {
-    if (quote && !gameState.currentText) {
+    if (useCustomText && customText && !gameState.currentText) {
+      setGameState(prev => ({
+        ...prev,
+        currentText: customText,
+      }));
+    } else if (quote && !gameState.currentText && !useCustomText) {
       setGameState(prev => ({
         ...prev,
         currentText: quote.content,
       }));
     }
-  }, [quote, gameState.currentText]);
+  }, [quote, gameState.currentText, useCustomText, customText]);
 
   // Timer for real-time updates
   useEffect(() => {
@@ -155,8 +166,47 @@ export default function TypingGame() {
     setShowResults(false);
     setFinalStats(null);
 
-    // Fetch new quote
-    await refetch();
+    // Fetch new quote only if not using custom text
+    if (!useCustomText) {
+      await refetch();
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setCustomText(text.trim());
+      setUseCustomText(true);
+      setGameState(prev => ({
+        ...prev,
+        currentText: text.trim(),
+      }));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCustomTextSubmit = () => {
+    if (customText.trim()) {
+      setUseCustomText(true);
+      setGameState(prev => ({
+        ...prev,
+        currentText: customText.trim(),
+      }));
+    }
+  };
+
+  const switchToRandomText = () => {
+    setUseCustomText(false);
+    setCustomText("");
+    setGameState(prev => ({
+      ...prev,
+      currentText: "",
+    }));
+    refetch();
   };
 
   const handleTyping = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -264,6 +314,54 @@ export default function TypingGame() {
 
         {/* Game Container */}
         <Card className="p-8 mb-6">
+          {/* Text Source Selection */}
+          <Tabs value={useCustomText ? "custom" : "random"} className="mb-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="random" onClick={switchToRandomText}>
+                <FileText className="w-4 h-4 mr-2" />
+                Random Text
+              </TabsTrigger>
+              <TabsTrigger value="custom" onClick={() => setUseCustomText(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Your Text
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="custom" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="file-upload">Upload a text file (.txt)</Label>
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    accept=".txt,.pdf"
+                    onChange={handleFileUpload}
+                    ref={fileInputRef}
+                    className="mt-2"
+                  />
+                </div>
+                <div className="text-center text-gray-500">or</div>
+                <div>
+                  <Label htmlFor="custom-text">Paste your text here</Label>
+                  <Textarea
+                    id="custom-text"
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                    placeholder="Paste the text you want to practice typing..."
+                    className="mt-2 min-h-24"
+                  />
+                  <Button 
+                    onClick={handleCustomTextSubmit}
+                    className="mt-2"
+                    disabled={!customText.trim()}
+                  >
+                    Use This Text
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
           {/* Stats Bar */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
@@ -295,13 +393,17 @@ export default function TypingGame() {
           {/* Text Display Area */}
           <div className="mb-6">
             <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 min-h-32">
-              {isLoading ? (
+              {isLoading && !useCustomText ? (
                 <div className="text-center py-8">
                   <Loader2 className="animate-spin inline-block w-6 h-6 text-blue-500 mb-2" />
                   <p className="text-gray-600">Loading new passage...</p>
                 </div>
-              ) : (
+              ) : gameState.currentText ? (
                 renderTextWithHighlighting()
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  {useCustomText ? "Please add your text above to start practicing" : "Loading text..."}
+                </div>
               )}
             </div>
           </div>
@@ -343,7 +445,11 @@ export default function TypingGame() {
           <ul className="space-y-2 text-gray-600">
             <li className="flex items-start">
               <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              Click "Start Test" to begin with a random text passage
+              Choose between random text passages or upload your own text/files
+            </li>
+            <li className="flex items-start">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+              Click "Start Test" to begin typing practice
             </li>
             <li className="flex items-start">
               <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
