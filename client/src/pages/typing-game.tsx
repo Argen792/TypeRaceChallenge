@@ -230,35 +230,26 @@ export default function TypingGame() {
     return Math.min(Math.max(baseSpeed, 0.5), 3.0); // Clamp between 0.5x and 3x speed
   };
 
-  const playAudioForProgress = () => {
-    if (!audioEnabled || !('speechSynthesis' in window) || !gameState.currentText) return;
-
-    const currentPos = gameState.userInput.length;
-    if (currentPos >= gameState.currentText.length) return;
+  const playAudioForTypedText = () => {
+    if (!audioEnabled || !('speechSynthesis' in window) || !gameState.currentText || gameState.userInput.length === 0) return;
 
     // Stop any current speech
     window.speechSynthesis.cancel();
     
-    // Get remaining text to read
-    const remainingText = gameState.currentText.substring(currentPos);
+    // Get the text that has been typed so far
+    const typedText = gameState.currentText.substring(0, gameState.userInput.length);
     
-    // Read ahead in complete words (next 15-25 words or until sentence end)
-    const words = remainingText.split(/\s+/);
-    const maxWords = 20;
-    let wordsToRead = Math.min(words.length, maxWords);
+    // Find the last complete word that was typed
+    const words = typedText.split(/\s+/);
+    if (words.length === 0) return;
     
-    // Find natural stopping point (sentence endings)
-    for (let i = 0; i < wordsToRead; i++) {
-      if (words[i].match(/[.!?]$/)) {
-        wordsToRead = i + 1;
-        break;
-      }
-    }
+    // Get the last few words to read (3-5 words for natural flow)
+    const wordsToRead = Math.min(words.length, 4);
+    const recentWords = words.slice(-wordsToRead);
+    const textToRead = recentWords.join(' ');
     
-    const textChunk = words.slice(0, wordsToRead).join(' ');
-    
-    if (textChunk.trim()) {
-      const utterance = new SpeechSynthesisUtterance(textChunk);
+    if (textToRead.trim()) {
+      const utterance = new SpeechSynthesisUtterance(textToRead);
       
       // Use selected voice for better quality
       if (selectedVoice) {
@@ -266,12 +257,12 @@ export default function TypingGame() {
       }
       
       // Improved speech settings for more natural sound
-      utterance.rate = calculateTypingSpeed();
+      utterance.rate = Math.max(calculateTypingSpeed(), 0.8); // Minimum readable speed
       utterance.pitch = 0.9; // Slightly lower pitch sounds more natural
       utterance.volume = 0.7;
       
       // Add some variation to make it less robotic
-      const variation = (Math.random() - 0.5) * 0.1;
+      const variation = (Math.random() - 0.5) * 0.05;
       utterance.pitch += variation;
       
       speechSynthRef.current = utterance;
@@ -318,10 +309,7 @@ export default function TypingGame() {
         textDisplayRef.current.scrollTop = 0;
       }
 
-      // Start audio if enabled
-      if (audioEnabled) {
-        playAudioForProgress();
-      }
+      // Audio will start when user begins typing
     }, 100);
   };
 
@@ -424,9 +412,12 @@ export default function TypingGame() {
       }
     }, 0);
 
-    // Sync audio with typing progress (every few characters)
-    if (audioEnabled && input.length > 0 && input.length % 10 === 0) {
-      playAudioForProgress();
+    // Sync audio with typing progress (when completing words)
+    if (audioEnabled && input.length > 0 && input.endsWith(' ')) {
+      // Small delay to let the word complete
+      setTimeout(() => {
+        playAudioForTypedText();
+      }, 100);
     }
 
     // Check if completed
@@ -705,7 +696,7 @@ export default function TypingGame() {
             
             {audioEnabled && (
               <p className="text-xs text-gray-500 mt-2">
-                Audio reads the text at your typing speed with natural voice variations. Select a voice for better quality.
+                Audio reads back the words you type in real-time. Start typing to hear your progress!
               </p>
             )}
           </Card>
@@ -817,7 +808,7 @@ export default function TypingGame() {
             </li>
             <li className="flex items-start">
               <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              Enable audio sync to hear the text read aloud at your typing speed
+              Enable audio sync to hear the words you type read back to you in real-time
             </li>
           </ul>
         </Card>
