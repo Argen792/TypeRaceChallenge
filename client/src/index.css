@@ -72,21 +72,21 @@
 .char-correct {
   background-color: var(--correct);
   color: hsl(122, 40%, 20%);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 1px 2px;
 }
 
 .char-incorrect {
   background-color: var(--incorrect);
   color: hsl(0, 50%, 30%);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 1px 2px;
 }
 
 .char-current {
   background-color: var(--current);
   color: hsl(207, 60%, 20%);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 1px 2px;
   animation: pulse 1s infinite;
 }
@@ -99,6 +99,14 @@
 .typing-text {
   font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
   font-size: 1.5rem;
-  line-height: 1.6;
+  line-height: 1.8;
   letter-spacing: 0.05em;
+  word-spacing: 0.1em;
+  /* Prevent text size changes during typing */
+  font-variant-numeric: tabular-nums;
+  /* Ensure consistent spacing */
+  white-space: pre-wrap;
+  /* Prevent layout shifts */
+  min-height: 200px;
+  overflow-wrap: break-word;
 }

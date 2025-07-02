@@ -503,7 +503,7 @@ export default function TypingGame() {
     if (!gameState.currentText) return null;
 
     return (
-      <div className="typing-text text-gray-800 leading-relaxed">
+      <div className="typing-text text-gray-800 leading-relaxed whitespace-pre-wrap">
         {gameState.currentText.split("").map((char, index) => {
           let className = "relative";
           const isCurrentChar = index === gameState.userInput.length;
@@ -516,6 +516,19 @@ export default function TypingGame() {
             }
           } else if (isCurrentChar) {
             className += " char-current";
+          }
+
+          // Handle line breaks properly
+          if (char === '\n') {
+            return (
+              <span 
+                key={index} 
+                className={className}
+                ref={isCurrentChar ? currentCharRef : null}
+              >
+                {'\n'}
+              </span>
+            );
           }
 
           return (
