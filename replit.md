@@ -77,8 +77,26 @@ The application is configured for deployment on Replit with the following setup:
 - NODE_ENV determines development vs production behavior
 - Replit-specific plugins enabled for development experience
 
+## Project Documentation
+
+### Installation & Setup Files
+- **README.md** - Comprehensive installation guide and project documentation
+- **DEPENDENCIES.md** - Complete list of all npm dependencies with descriptions
+- **package.json** - Node.js dependency management and scripts
+- **drizzle.config.ts** - Database ORM configuration
+
+### Key Configuration Files
+- **vite.config.ts** - Build tool configuration for development and production
+- **tailwind.config.ts** - CSS framework configuration with custom theme
+- **tsconfig.json** - TypeScript compiler settings and path aliases
+
 ## Changelog
 
+- June 28, 2025. Added comprehensive documentation
+  - Created detailed README.md with installation instructions
+  - Added DEPENDENCIES.md listing all npm packages
+  - Documented project structure and troubleshooting guide
+  - Included deployment instructions for Replit and manual setup
 - June 27, 2025. Added audio synchronization feature
   - Implemented text-to-speech audio that plays at user's typing speed
   - Added audio controls with enable/disable toggle and base speed adjustment
