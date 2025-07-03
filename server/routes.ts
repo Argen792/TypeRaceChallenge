@@ -1,23 +1,22 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertTypingTestSchema } from "@shared/schema";
+import { insertTypingTestSchema } from "../shared/schema";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express) { // Убрали возвращаемый тип
   // Proxy route for quotable.io API to avoid CORS issues
   app.get("/api/quote", async (req, res) => {
     try {
       const response = await fetch("https://api.quotable.io/random?minLength=150&maxLength=300");
-      
+
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status}`);
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
       console.error("Error fetching quote:", error);
-      
+
       // Fallback quotes if API fails
       const fallbackQuotes = [
         {
@@ -36,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           length: 203
         }
       ];
-      
+
       const randomQuote = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
       res.json(randomQuote);
     }
@@ -90,18 +89,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/user", async (req, res) => {
     try {
       const { username } = req.body;
-      
+
       if (!username || typeof username !== 'string') {
         return res.status(400).json({ error: "Username is required" });
       }
 
-      // Check if user already exists
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
         return res.json(existingUser);
       }
 
-      // Create new user
       const newUser = await storage.createUser({ username });
       res.json(newUser);
     } catch (error) {
@@ -109,7 +106,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to create user" });
     }
   });
-
-  const httpServer = createServer(app);
-  return httpServer;
 }
